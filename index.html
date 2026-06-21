@@ -34,7 +34,7 @@
 <div id="stage">
   <canvas id="sky"></canvas>
   <button id="mute" class="btn" aria-label="おとを切りかえ">♪</button>
-  <div id="hint"><div class="card">タップでふわり。いちご大福をあつめよう<span class="sub">つづけて獲るほど倍率アップ</span></div></div>
+  <div id="hint"><div class="card">タップでふわり。いちご大福をあつめよう<span class="sub">つづけて獲るほど倍率アップ　／　失敗なし</span></div></div>
 </div>
 
 <script>
@@ -254,17 +254,50 @@ function drawResultBox(){
 
 /* ===== オーディオ ===== */
 let actx=null,master=null,muted=false;
-function audioInit(){ if(actx)return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); master=actx.createGain(); master.gain.value=0.5; master.connect(actx.destination);}catch(e){actx=null;} }
+function audioInit(){ if(actx)return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); master=actx.createGain(); master.gain.value=muted?0:0.65; master.connect(actx.destination);}catch(e){actx=null;} }
 function tone(freq,dur,type,vol,glide){ if(!actx||muted)return; const o=actx.createOscillator(),g=actx.createGain(); o.type=type||"square"; o.frequency.value=freq; if(glide)o.frequency.linearRampToValueAtTime(glide,actx.currentTime+dur*0.6); g.gain.value=0; g.gain.linearRampToValueAtTime(vol||0.05,actx.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur); o.connect(g); g.connect(master); o.start(); o.stop(actx.currentTime+dur+0.02); }
-function sndFlap(){ tone(330,0.10,"square",0.035,460); }
+function sndFlap(){ tone(330,0.10,"square",0.10,460); }
 const PENTA=[0,2,4,7,9];
 function comboNote(n){ const i=Math.min(n,18)-1, oct=Math.floor(i/PENTA.length), deg=PENTA[i%PENTA.length]; return 523.25*Math.pow(2,(deg+oct*12)/12); }
-function sndCombo(n){ if(!actx||muted)return; const f=comboNote(n); tone(f,0.12,"square",0.05); if(n>=5) setTimeout(()=>tone(f*2,0.07,"triangle",0.03),28); }
-function sndClear(){ [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>tone(f,0.16,"square",0.05),i*95)); }
+function sndCombo(n){ if(!actx||muted)return; const f=comboNote(n); tone(f,0.12,"square",0.18); if(n>=5) setTimeout(()=>tone(f*2,0.07,"triangle",0.10),28); }
+function sndClear(){ [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>tone(f,0.16,"square",0.16),i*95)); }
+
+/* ===== BGM（手続き的チップチューン・8小節ループ／外部音源なし） ===== */
+let bgmGain=null,PULSE25=null,PULSE12=null,bgmOn=false,bgmIdx=0,bgmLoopT=0,bgmTimer=null;
+const mf=m=>440*Math.pow(2,(m-69)/12);
+function makePulse(duty){ const n=20,re=new Float32Array(n),im=new Float32Array(n); for(let i=1;i<n;i++) im[i]=(2/(i*Math.PI))*Math.sin(i*Math.PI*duty); return actx.createPeriodicWave(re,im); }
+const BPM=104,SPB=60/BPM,LOOP=8*4*SPB;
+const PROG=[ {arp:[65,69,72],bass:41},{arp:[67,71,74],bass:43},{arp:[64,67,71],bass:40},{arp:[69,72,76],bass:45},
+             {arp:[65,69,72],bass:41},{arp:[67,71,74],bass:43},{arp:[60,64,67],bass:36},{arp:[60,64,67],bass:48} ];
+const MELODY=[ {b:0,m:72,d:1},{b:1,m:77,d:1},{b:2,m:81,d:2},{b:4,m:79,d:1.5},{b:5.5,m:74,d:.5},{b:6,m:79,d:2},
+  {b:8,m:76,d:1},{b:9,m:79,d:2},{b:11,m:76,d:1},{b:12,m:81,d:1},{b:13,m:84,d:1},{b:14,m:81,d:2},
+  {b:16,m:84,d:2},{b:18,m:81,d:1},{b:19,m:77,d:1},{b:20,m:79,d:1},{b:21,m:81,d:1},{b:22,m:83,d:2},
+  {b:24,m:84,d:1},{b:25,m:79,d:1},{b:26,m:76,d:1},{b:27,m:72,d:1},{b:28,m:72,d:3} ];
+const BGM_EV=(function(){ const e=[],ap=[0,1,2,1];
+  for(let bi=0;bi<8;bi++){ const c=PROG[bi];
+    for(let k=0;k<8;k++){ const beat=bi*4+k*0.5; e.push({t:beat*SPB,m:c.arp[ap[k%4]],d:0.5*SPB*0.9,ch:"arp"}); }
+    e.push({t:(bi*4)*SPB,m:c.bass,d:1.6*SPB,ch:"bass"}); e.push({t:(bi*4+2)*SPB,m:c.bass,d:1.6*SPB,ch:"bass"});
+  }
+  for(const n of MELODY) e.push({t:n.b*SPB,m:n.m,d:n.d*SPB,ch:"mel"});
+  return e.sort((a,b)=>a.t-b.t);
+})();
+function bgmNote(t,ev){ const o=actx.createOscillator(),g=actx.createGain(); let peak;
+  if(ev.ch==="mel"){ o.setPeriodicWave(PULSE25); peak=0.24; }
+  else if(ev.ch==="arp"){ o.setPeriodicWave(PULSE12); peak=0.09; }
+  else { o.type="triangle"; peak=0.17; }
+  o.frequency.value=mf(ev.m); const end=t+ev.d;
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(peak,t+0.012); g.gain.exponentialRampToValueAtTime(0.0001,end);
+  o.connect(g); g.connect(bgmGain); o.start(t); o.stop(end+0.03);
+}
+function bgmSchedule(){ if(!bgmOn||!actx)return; const ahead=actx.currentTime+0.12; let guard=0;
+  while(guard++<256){ if(bgmIdx>=BGM_EV.length){ bgmIdx=0; bgmLoopT+=LOOP; } const ev=BGM_EV[bgmIdx], t=bgmLoopT+ev.t; if(t>ahead)break; bgmNote(t,ev); bgmIdx++; } }
+function startBGM(){ if(!actx||bgmOn)return; if(!PULSE25){PULSE25=makePulse(0.25);PULSE12=makePulse(0.125);}
+  bgmGain=actx.createGain(); bgmGain.gain.value=1.0; bgmGain.connect(master);
+  bgmOn=true; bgmIdx=0; bgmLoopT=actx.currentTime+0.12; bgmSchedule(); bgmTimer=setInterval(bgmSchedule,25); }
 
 /* ===== 入力 ===== */
 let flapSndTimer=0;
-function onDown(e){ e.preventDefault(); audioInit(); if(actx&&actx.state==="suspended")actx.resume();
+function onDown(e){ e.preventDefault(); audioInit(); if(actx&&actx.state==="suspended")actx.resume(); startBGM();
   try{cv.setPointerCapture(e.pointerId);}catch(_){}
   if(result.on && result.t>0.7){ restart(); return; }     // 結果画面はタップでリトライ（はばたかない）
   pointer.active=true; pointer.id=e.pointerId; pointer.x=e.clientX; pointer.y=e.clientY; pointer.flapQueued=true;
@@ -401,7 +434,7 @@ function frame(now){
 }
 document.addEventListener("visibilitychange",()=>{ paused=document.hidden; last=performance.now(); });
 
-document.getElementById("mute").addEventListener("click",e=>{ e.stopPropagation(); muted=!muted; if(master)master.gain.value=muted?0:0.5; e.currentTarget.textContent=muted?"×":"♪"; });
+document.getElementById("mute").addEventListener("click",e=>{ e.stopPropagation(); muted=!muted; if(master)master.gain.value=muted?0:0.65; e.currentTarget.textContent=muted?"×":"♪"; });
 
 /* ===== 起動 ===== */
 resize(); resetBall();
