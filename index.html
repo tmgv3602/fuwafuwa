@@ -47,7 +47,7 @@ const CONFIG = {
   targetCount: 30,             // 何個でトリップ終了
   comboWindow: 3.0,            // この秒数内に次を獲ればコンボ継続（倍率アップ）。長いほど繋がりやすい
   spawnReach: [16, 44],        // 次の大福を「直前のどれか」から何px範囲に置くか。小さいほど塊が密
-  // スコア評価（点）：score >= s を満たす一番上のランク。
+  // スコア評価（点）：score >= s を満たす一番上のランク。※要調整
   ranks: [
     { s: 16000, label: "神" },   // 高得点 ←
     { s: 12000, label: "匠" },
@@ -162,8 +162,8 @@ function buildSky(){
   for(let y=0;y<VH;y++){
     const t=y/(VH-1); let a,b,f;
     if(t<0.5){a=s0;b=s1;f=t/0.5;} else {a=s1;b=s2;f=(t-0.5)/0.5;}
-    const r=y&3;
-    for(let x=0;x<VW;x++){ const col=(f>BAYER[r][x&3]/16)?b:a, i=(y*VW+x)*4; d[i]=col[0];d[i+1]=col[1];d[i+2]=col[2];d[i+3]=255; }
+    const r=Math.round(a[0]+(b[0]-a[0])*f), g=Math.round(a[1]+(b[1]-a[1])*f), bb=Math.round(a[2]+(b[2]-a[2])*f);
+    for(let x=0;x<VW;x++){ const i=(y*VW+x)*4; d[i]=r;d[i+1]=g;d[i+2]=bb;d[i+3]=255; }
   }
   skyCache=img; skyNight=clamp(1-dayMix*1.6,0,1);
 }
