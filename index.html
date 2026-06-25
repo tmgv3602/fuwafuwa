@@ -34,7 +34,7 @@
 <div id="stage">
   <canvas id="sky"></canvas>
   <button id="mute" class="btn" aria-label="おとを切りかえ">♪</button>
-  <div id="hint"><div class="card">タップでふわり。いちご大福をあつめよう<span class="sub">つづけて獲るほど倍率アップ　／　失敗なし　[v4]</span></div></div>
+  <div id="hint"><div class="card">タップでふわり。いちご大福をあつめよう<span class="sub">つづけて獲るほど倍率アップ[v5]</span></div></div>
 </div>
 
 <script>
@@ -42,8 +42,6 @@
    ★ 設定 ★
    ・targetCount … 何個でクリアか
    ・ranks … タイム評価。time(秒) < t を満たす一番上のランクになる。
-             ※しきい値は仮置き。実際にプレイして詰めてください。
-   （GitHub Pages / itch.io 等に置けば彼女のスマホにずっと残ります）
    ====================================================================== */
 const CONFIG = {
   targetCount: 30,             // 何個でトリップ終了
@@ -136,7 +134,7 @@ let stars=[],clouds=[];
 let hintFading=false,interactions=0;
 
 function makeStars(){const n=reduce?26:46,a=[];for(let i=0;i<n;i++)a.push({x:(Math.random()*VW)|0,y:(Math.random()*VH*0.62)|0,ph:Math.random()*6.28,sp:Math.random()*1.6+0.7});return a;}
-function makeClouds(){const a=[];for(let i=0;i<3;i++)a.push({x:Math.random()*VW,y:8+Math.random()*(VH*0.32),s:0.8+Math.random()*0.6,sp:(0.04+Math.random()*0.06)*(Math.random()<.5?-1:1)});return a;}
+function makeClouds(){const a=[];for(let i=0;i<3;i++){const s=0.8+Math.random()*0.6;const lo=Math.ceil(4*s)+2,hi=VW-Math.ceil(14*s)-2;a.push({x:lo+Math.random()*Math.max(1,hi-lo),y:8+Math.random()*(VH*0.32),s:s,sp:(0.04+Math.random()*0.06)*(Math.random()<.5?-1:1)});}return a;}
 
 /* ===== 空（昼夜）===== */
 const CYCLE=200; let phase=0.42;
@@ -187,7 +185,8 @@ function drawItems(t){
   }
 }
 function drawSparks(){
-  for(const s of sparks){ const x=Math.round(s.x),y=Math.round(s.y), col=s.life>0.7?P(13):P(12);
+  for(const s of sparks){ const x=Math.round(s.x),y=Math.round(s.y); if(x<2||x>VW-2||y<2||y>VH-2) continue;
+    const col=s.life>0.7?P(13):P(12);
     px(x,y,col); if(s.life>0.55){ px(x-1,y,col); px(x+1,y,col); px(x,y-1,col); px(x,y+1,col); } }
 }
 function drawPetals(){ for(const p of petals){ vctx.fillStyle=p.col; vctx.fillRect(Math.round(p.x),Math.round(p.y),p.s,p.s);} }
@@ -227,7 +226,8 @@ function drawUI(){
     for(const u of popups){ ctx.globalAlpha=clamp(u.t,0,1);
       const col=u.mult>=8?P(10):u.mult>=6?P(12):u.mult>=4?P(11):u.mult>=2?P(13):P(8);
       ctx.font=Math.round(13+u.mult*1.8)+'px "DotGothic16",monospace'; ctx.textAlign="center"; ctx.textBaseline="middle";
-      T("+"+u.pts, u.x*sx, u.y*syy, col);
+      const lbl="+"+u.pts, w2=ctx.measureText(lbl).width/2+SH+2;
+      T(lbl, clamp(u.x*sx,w2,cssW-w2), u.y*syy, col);
     }
     ctx.globalAlpha=1;
   }
@@ -325,7 +325,7 @@ function physics(){
   ball.vx=clamp(ball.vx,-VMAX,VMAX); ball.vy=clamp(ball.vy,-VMAX,VMAX);
   ball.x+=ball.vx; ball.y+=ball.vy;
   if(ball.vx>8) ball.dir=1; else if(ball.vx<-8) ball.dir=-1;
-  const sideL=(FOX_W/2)*SUB, sideR=(VW-FOX_W/2)*SUB;          // 両端で柔らかく跳ね返す（ワープ廃止）
+  const sideL=(FOX_W/2+2)*SUB, sideR=(VW-FOX_W/2-2)*SUB;      // 両端で柔らかく跳ね返す＋2px余白
   if(ball.x<sideL){ ball.x=sideL; if(ball.vx<0)ball.vx=(-ball.vx*0.3)|0; }
   else if(ball.x>sideR){ ball.x=sideR; if(ball.vx>0)ball.vx=(-ball.vx*0.3)|0; }
   const top=10*SUB; if(ball.y<top){ball.y=top; if(ball.vy<0)ball.vy=(-ball.vy*0.2)|0;}
@@ -333,7 +333,7 @@ function physics(){
 
   const bx=ball.x/SUB, by=ball.y/SUB;
   if(!result.on){
-    const LM=11, RM=VW-11, TOPM=14, BOTM=horizonY-10;
+    const LM=14, RM=VW-14, TOPM=16, BOTM=horizonY-12;
     for(let i=items.length-1;i>=0;i--){ const it=items[i];
       it.dvx+=(Math.random()-0.5)*0.03; it.dvy+=(Math.random()-0.5)*0.03;   // ゆるやかに漂う（逃げない）
       it.dvx*=0.97; it.dvy*=0.97;
@@ -345,13 +345,13 @@ function physics(){
     }
   }
   for(let i=sparks.length-1;i>=0;i--){ const s=sparks[i]; s.x+=s.vx; s.y+=s.vy; s.vy+=0.04; s.life-=0.04; if(s.life<=0)sparks.splice(i,1); }
-  for(let i=petals.length-1;i>=0;i--){ const p=petals[i]; p.x+=p.vx; p.y+=p.vy; if(p.y>VH+4)petals.splice(i,1); }
+  for(let i=petals.length-1;i>=0;i--){ const p=petals[i]; p.x+=p.vx; p.y+=p.vy; if(p.x<2){p.x=2;p.vx=Math.abs(p.vx);} else if(p.x>VW-5){p.x=VW-5;p.vx=-Math.abs(p.vx);} if(p.y>VH+4)petals.splice(i,1); }
 }
-function burst(x,y){ for(let i=0;i<12;i++){const a=Math.random()*6.28,sp=Math.random()*1.1+0.4; sparks.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.3,life:1});} }
+function burst(x,y){ for(let i=0;i<12;i++){const a=Math.random()*6.28,sp=Math.random()*0.7+0.35; sparks.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.3,life:1});} }
 function spawnDaifuku(){
   if(items.length>=5) return;
   const bx=ball.x/SUB, by=ball.y/SUB;
-  const LM=10, RM=VW-10, TM=VH*0.10, BM=VH*0.66;
+  const LM=14, RM=VW-14, TM=VH*0.10, BM=VH*0.66;
   function mk(x,y){ items.push({x:clamp(x,LM,RM),y:clamp(y,TM,BM),dvx:(Math.random()-0.5)*0.3,dvy:(Math.random()-0.5)*0.3,bob:Math.random()*6.28}); }
   if(items.length===0){                            // 最初の1個：ランダムにシード（キツネから少し離す）
     for(let t=0;t<10;t++){ const x=LM+Math.random()*(RM-LM), y=TM+Math.random()*(BM-TM);
@@ -388,7 +388,7 @@ function tripEnd(){
   result.rank={label:CONFIG.ranks[idx].label, idx:idx};
   result.newBest = score>best; if(result.newBest){ best=score; saveBest(best); }
   const cols=[P(11),P(12),P(13),P(7),P(14),P(8)];
-  for(let i=0;i<28;i++) petals.push({x:Math.random()*VW, y:-Math.random()*24, vx:(Math.random()-0.5)*0.5, vy:0.35+Math.random()*0.55, s:(Math.random()<.5?2:3), col:cols[(Math.random()*cols.length)|0]});
+  for(let i=0;i<28;i++) petals.push({x:2+Math.random()*(VW-7), y:-Math.random()*24, vx:(Math.random()-0.5)*0.5, vy:0.35+Math.random()*0.55, s:(Math.random()<.5?2:3), col:cols[(Math.random()*cols.length)|0]});
   sndClear();
   hintFading=true; const h=document.getElementById("hint"); if(h)h.classList.add("gone");
 }
@@ -414,7 +414,7 @@ function frame(now){
   for(let i=popups.length-1;i>=0;i--){ const u=popups[i]; u.t-=dt/800; u.y-=dt*0.018; if(u.t<=0)popups.splice(i,1); }
   if(comboPulse>0) comboPulse=Math.max(0,comboPulse-dt/170);
   phase=(phase+dt/1000/CYCLE)%1; advanceFox(dt); maybeSpawn(dt);
-  for(const c of clouds){ c.x+=c.sp*(reduce?0.3:1)*(dt/16.7); if(c.x>VW+18)c.x=-18; if(c.x<-18)c.x=VW+18; }
+  for(const c of clouds){ c.x+=c.sp*(reduce?0.3:1)*(dt/16.7); const lo=Math.ceil(4*c.s)+2, hi=VW-Math.ceil(14*c.s)-2; if(hi<=lo){c.x=(lo+hi)/2;} else if(c.x<lo){c.x=lo;c.sp=Math.abs(c.sp);} else if(c.x>hi){c.x=hi;c.sp=-Math.abs(c.sp);} }
 
   const key=Math.floor(phase*60);
   if(key!==skyKey||dirtySky){ buildSky(); skyKey=key; dirtySky=false; }
@@ -424,7 +424,7 @@ function frame(now){
   const c=celestial();
   if(c.moon.up) drawMoon(c);
   if(c.sun.up) drawSun(c);
-  for(const cl of clouds){ drawCloud(cl.x,cl.y,cl.s); drawCloud(cl.x-VW,cl.y,cl.s); drawCloud(cl.x+VW,cl.y,cl.s); }
+  for(const cl of clouds) drawCloud(cl.x,cl.y,cl.s);
   drawBank();
   drawItems(tsec);
   drawSparks();
